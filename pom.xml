@@ -6,7 +6,7 @@
 
     <groupId>net.kunmc.lab</groupId>
     <artifactId>NewVote</artifactId>
-    <version>8.77778</version>
+    <version>8.77778.1</version>
     <packaging>jar</packaging>
 
     <name>NewVote</name>

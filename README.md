@@ -26,7 +26,7 @@ cd NewVote-cyrne1
 mvn -DskipTests package
 ```
 
-生成された `target/NewVote-8.77778.jar` をサーバーの `plugins` フォルダに配置してください。
+生成された `target/NewVote-8.77778.1.jar` をサーバーの `plugins` フォルダに配置してください。
 
 ## 使い方
 
