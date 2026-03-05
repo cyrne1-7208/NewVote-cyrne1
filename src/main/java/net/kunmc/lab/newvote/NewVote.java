@@ -4,316 +4,545 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Sound;
 import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
-public final class NewVote extends JavaPlugin implements CommandExecutor, TabCompleter {
+public final class NewVote extends JavaPlugin {
+
+    private static final String YANA_PLAYER_NAME = "Yanaaaaa";
+
+    private static boolean vs = false;
+    private static boolean vget = false;
+    private static boolean vlist = false;
+
+    private static List<String> senderListCurrent = new ArrayList<>();
+    private static List<String> receiverListCurrent = new ArrayList<>();
+    private static List<String> senderListResult = new ArrayList<>();
+    private static List<String> receiverListResult = new ArrayList<>();
+    private static List<String> voteTargetList = new ArrayList<>();
+
+    private boolean yanaRevealReserved = false;
+    private static boolean yanaRevealActive = false;
+    private static boolean yanaFeatureEnabled = true;
+    private int yanaCountdownVotes;
+    private int rank = 1;
+    private String yanaRankLabel;
+
+    private boolean debugEnabled;
+    private boolean debugLogStackTrace;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        saveConfig();
-        this.getCommand("v").setExecutor(this);
-        this.getCommand("v").setTabCompleter(this);
-        this.getCommand("yvote").setExecutor(this);
-        this.getCommand("vs").setExecutor(this);
-        this.getCommand("vget").setExecutor(this);
-        getServer().getLogger().info(ChatColor.AQUA+"NewVotePlugin by Yanaaaaa");
+        reloadConfig();
+        loadDebugConfig();
+
+        boolean allCommandsRegistered = true;
+        allCommandsRegistered &= safeRegisterCommand("v", true);
+        allCommandsRegistered &= safeRegisterCommand("yvote", false);
+        allCommandsRegistered &= safeRegisterCommand("vs", false);
+        allCommandsRegistered &= safeRegisterCommand("vget", false);
+
+        if (!allCommandsRegistered) {
+            getLogger().severe("Plugin disabled because one or more commands are missing.");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+
+        getLogger().info("NewVotePlugin by Cyrne1_7208");
     }
 
-    //vs=投票時判定用,vget=投票開示時判定用
-    static boolean vs = false,vget = false,vlist=false;
-    //SenderList=投票者のリスト,ReceiverList=被投票者のリスト
-    static List<String> SenderList1 = new ArrayList<>(),ReceiverList1 = new ArrayList<>();
-    static List<String> SenderList2 = new ArrayList<>(),ReceiverList2 = new ArrayList<>();
-    //List=投票先のリスト
-    static List<String> List = new ArrayList<>();
-    public boolean Yana = false;
-    static boolean YanaGet=false,Yvote=true;
-    public int Yanum ;
-    public int rank=1;
-    public String ys;
-
     @Override
-    public  boolean onCommand(CommandSender sender, Command cmd, String Label, String[] args){
-        //投票時に関する処理
-        if(cmd.getName().equals("v")){
-            if(args.length==1){
-                //投票時の処理
-                if(vs) {
-                    //オンラインプレイヤーを取得しリストに登録する処理
-                    Player p = (Player) sender;
-                    Bukkit.getOnlinePlayers().forEach(player -> {
-                        List.add(player.getName());
-                    });
-                    //もしconfig.ymlのListに要素が登録されていた時にその要素を参照する処理
-                    reloadConfig();saveConfig();
-                    if(getConfig().getStringList("List").size()!=0){
-                        List = getConfig().getStringList("List");
-                    }
-                    List.stream().distinct();
+    public void onDisable() {
+        clearAllRuntimeState();
+    }
 
-                    //投票の受付処理
-                    //例外:投票済みの場合の処理
-                    if (SenderList1.contains(sender.getName())) {
-                        sender.sendMessage(ChatColor.YELLOW + "あなたはすでに投票済みです。");
-                    }
-                    //例外:投票先のリストにプレイヤーが存在しない場合
-                    else if (!List.contains(args[0])) {
-                        sender.sendMessage(ChatColor.RED + (args[0] + "はリストに存在しません。"));
-                    }
-                    //投票完了の通知
-                    else {
-                        //投票者、投票先を保存し投票完了を通知する。
-                        SenderList1.add(p.getName());
-                        ReceiverList1.add(args[0]);
-                        ScoreBoardLogic.setVoteStatus(1,p);
-                        sender.sendMessage(ChatColor.GREEN + args[0]+"に投票しました。");
-                    }
-                }
-                //例外:投票が開始されていないときの処理
-                else{
-                    sender.sendMessage(ChatColor.RED + "投票は開始されていません。");
-                }
-            }
-            //例外:コマンドの形式が異なっているときの処理。
-            else{
-                sender.sendMessage(ChatColor.RED + "コマンドの形式が異なります。/v <投票先のプレイヤー名>で投票してください。");
-            }
-        }
-        else if(cmd.getName().equals("yvote")){
-            if(sender.getName().equals("Yanaaaaa")) {
-                if(args.length==0) {
-                    if (Yvote) {
-                        Yvote = false;
-                        sender.sendMessage(ChatColor.GOLD + "やなーもーどおふ");
-                    } else {
-                        Yvote = true;
-                        sender.sendMessage(ChatColor.GOLD + "やなーもーどおん");
-                    }
-                }else if(args.length==1){
-                    rank = Integer.parseInt(args[0]);
-                    sender.sendMessage(ChatColor.GOLD + "基準を"+args[0]+"位以上にしました");
-                }
-            }else {
-                sender.sendMessage(ChatColor.RED + "権限がありません");
-            }
-        }
-        //投票開始・投票結果開示に関する処理
-        else if(cmd.getName().equals("vs")){
-            if(args.length==0) {
-                if(sender.isOp()){
-                if(vlist){
-                    ScoreBoardLogic.setVoteStatus(2,(Player) sender);
-                    vlist=false;
-                    sender.sendMessage(ChatColor.GREEN + "Tabリストから投票先の表示を削除しました。");
-                }
-                //一度目の/vsコマンド使用時に関する処理(投票開始)
-                else if (!vs) {
-                    reloadConfig();saveConfig();
-                    //投票開始の連絡を全プレイヤーに行う
-                    Bukkit.getOnlinePlayers().forEach(player -> {
-                        player.sendMessage(ChatColor.GOLD + "投票が開始されました。");
-                        player.sendMessage(ChatColor.GREEN + "/v <投票先のプレイヤー名>で投票してください。");
-                        ScoreBoardLogic.setVoteStatus(0,player);
-                    });
-                    //投票開示を有効化する。
-                    vs = true;vget = false;
-                    YanaGet = false;Yana = false;
+    private void loadDebugConfig() {
+        debugEnabled = getConfig().getBoolean("debug.enabled", false);
+        debugLogStackTrace = getConfig().getBoolean("debug.logStackTrace", true);
+    }
 
-                }
-                //二度目の/vsコマンド実行時に関する処理(投票結果開示)
-                else {
-                    //数値の引き渡し
-                    SenderList2 = SenderList1; SenderList1=new ArrayList<>();
-                    ReceiverList2=ReceiverList1; ReceiverList1=new ArrayList<>();
-                    //投票結果の表示
-                    sendVotingResult(ReceiverList2);
-                    ScoreBoardLogic.setVoteStatus(2,(Player) sender);
-                    List = new ArrayList<>();
-                    //投票開始、投票先開示を有効にする
-                }
-                }
-                //例外:非OP権限者実行時
-                else{
-                    sender.sendMessage(ChatColor.RED+"このコマンドを実行する権限がありません。必要権限:OP");
-                }
-            }
-            //例外:コマンドの形式が異なっているときの処理。
-            else{
-                sender.sendMessage(ChatColor.RED+"コマンドの形式が異なります。/vs で投票を開始することができます。");
-            }
+    private void clearAllRuntimeState() {
+        vs = false;
+        vget = false;
+        vlist = false;
+        senderListCurrent.clear();
+        receiverListCurrent.clear();
+        senderListResult.clear();
+        receiverListResult.clear();
+        voteTargetList.clear();
+        yanaRevealReserved = false;
+        yanaRevealActive = false;
+        yanaFeatureEnabled = true;
+        yanaCountdownVotes = 0;
+        yanaRankLabel = null;
+    }
+
+    private boolean safeRegisterCommand(String commandName, boolean tabComplete) {
+        PluginCommand command = getCommand(commandName);
+        if (command == null) {
+            getLogger().severe("Command not found in plugin.yml: " + commandName);
+            return false;
         }
-        //投票先開示に関する処理
-        else if(cmd.getName().equals("vget"))
-            if(args.length==0) {
-                if(sender.isOp()) {
-                    //投票先開示の処理
-                    if (vget) {
-                        //各投票者の投票先の表示
-                        VoteResultLogic.sendVotingDestination(SenderList2,ReceiverList2);
-                        //投票開始を有効、投票先開示を無効にする。
-                        vs = false;vget = false;vlist=true;
-                    }
-                    //例外:投票が開始もしくは終了されていないときの処理
-                    else{
-                        sender.sendMessage(ChatColor.RED + "投票が完了していません。");
-                    }
-                }
-                //非OP権限者実行時
-                else{
-                    sender.sendMessage(ChatColor.RED+"このコマンドを実行する権限がありません。必要権限:OP");
-                }
-            }
-            //例外:コマンドの形式が異なっているときの処理。
-            else{
-                sender.sendMessage(ChatColor.RED+"コマンドの形式が異なります。/vget で投票先を手得できます。");
-            }
+        command.setExecutor(this);
+        if (tabComplete) {
+            command.setTabCompleter(this);
+        }
         return true;
     }
 
-    //・/v <投票先>コマンド実行時のTab補完
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command cmd, String Label, String[] args) {
-        if (args.length == 1) {
-            if (cmd.getName().equals("v")) {
-                reloadConfig();saveConfig();
-                //Config参照時のTab補完
-                if (getConfig().getStringList("List").size() != 0) {
-                    return getConfig().getStringList("List");
-                }
-                //通常時(オンラインプレイヤー参照時)のTab補完
-                else {
-                    return Bukkit.getOnlinePlayers().stream()
-                            .map(Player::getName)
-                            .filter(s -> s.startsWith(args[0]))
-                            .collect(Collectors.toList());
-                }
+    public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+        try {
+            String commandName = cmd.getName().toLowerCase(Locale.ROOT);
+            switch (commandName) {
+                case "v":
+                    return handleVoteCommand(sender, args);
+                case "yvote":
+                    return handleYvoteCommand(sender, args);
+                case "vs":
+                    return handleVsCommand(sender, args);
+                case "vget":
+                    return handleVgetCommand(sender, args);
+                default:
+                    return false;
             }
+        } catch (Exception ex) {
+            logError("Unexpected error while handling command", sender, cmd, args, ex);
+            sender.sendMessage(ChatColor.RED + "内部エラーが発生しました。管理者にログを共有してください。");
+            return true;
         }
-        return new ArrayList<>();
     }
 
-    /**
-     * 投票結果チャット欄に生成する
-     *
-     * @param receivers　リスト　投票先のリスト
-     */
-    public void sendVotingResult(List<String> receivers){
-        //リストの重複要素数と被投票者をもとにしたMapを生成する
-        Map<String, Integer> map = new HashMap<>();
-        for (String s : receivers) {
-            Integer i = map.get(s);
-            map.put(s, i == null ? 1 : i + 1);
+    private boolean handleVoteCommand(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(ChatColor.RED + "このコマンドはプレイヤーのみ実行できます。");
+            return true;
         }
 
-        //生成したMapを数字基準で降順にソートする
-        List<Map.Entry<String, Integer>> list_entries = new ArrayList<Map.Entry<String, Integer>>(map.entrySet());
-        Collections.sort(list_entries, new Comparator<Map.Entry<String, Integer>>() {
-            public int compare(Map.Entry<String, Integer> obj1, Map.Entry<String, Integer> obj2) {
-                return obj2.getValue().compareTo(obj1.getValue());
-            }
-        });
-
-        //投票結果の表示処理(全プレイヤーに表示)
-        Bukkit.getOnlinePlayers().forEach(player -> {
-            player.sendMessage(ChatColor.GOLD + "投票結果を表示します。");
-            player.sendMessage(ChatColor.AQUA + "==========投票結果==========");
-        });
-        int n = 1;//順位用変数
-        int count = 1;//実行回数変数
-        int num = 1;//数値比較用変数
-        for (Map.Entry<String, Integer> entry : list_entries) {
-            if (count != 1) {
-                if (num != entry.getValue()) {
-                    n = n + 1;
-                }
-            }
-            String string = Integer.toString(n);
-            int finalN = n;
-            Bukkit.getOnlinePlayers().forEach(player -> {
-                player.sendMessage(ChatColor.GREEN + string + "位: " + ChatColor.WHITE+ entry.getKey() + ChatColor.GOLD+" [" + entry.getValue() + "票]");
-                if(entry.getKey().equals("Yanaaaaa")&& finalN <=rank){
-                    Yana=true;
-                    Yanum=entry.getValue();
-                    ys=string;
-                }
-            });
-            num = entry.getValue();
-            count++;
+        if (args.length != 1) {
+            sender.sendMessage(ChatColor.RED + "コマンド形式: /v <投票先>");
+            return true;
         }
-        Bukkit.getOnlinePlayers().forEach(player -> {
-            player.sendMessage(ChatColor.AQUA + "==========投票結果==========");
-        });
 
-        if(Yana&&Yvote){
-            Yana=false;
-            YanaGet=true;
-            Bukkit.getOnlinePlayers().forEach(player -> {
-                player.sendTitle(ChatColor.AQUA+"おや？投票結果の様子が...!?",null,5,60,5);
-                player.playSound(player.getLocation(), Sound.ENTITY_GENERIC_EXPLODE,5,1);
-            });
-            new BukkitRunnable(){
-                public void run(){
-                    Bukkit.getOnlinePlayers().forEach(player -> {
-                        player.sendTitle(ChatColor.GREEN + "やなぱわ～" ,null,5,40,5);
-                        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP,5,1);
-                    });
-                    vs = false;vget = true;
+        if (!vs) {
+            sender.sendMessage(ChatColor.RED + "投票は開始されていません。");
+            return true;
+        }
+
+        Player player = (Player) sender;
+        reloadConfig();
+        loadDebugConfig();
+        loadVoteTargetList();
+
+        UUID senderUuid = player.getUniqueId();
+        if (containsSenderUuid(senderUuid, senderListCurrent)) {
+            sender.sendMessage(ChatColor.YELLOW + "あなたはすでに投票済みです。");
+            return true;
+        }
+
+        String receiver = args[0];
+        if (!voteTargetList.contains(receiver)) {
+            sender.sendMessage(ChatColor.RED + receiver + " は投票先リストに存在しません。");
+            return true;
+        }
+
+        senderListCurrent.add(senderUuid.toString());
+        receiverListCurrent.add(receiver);
+        ScoreBoardLogic.setVoteStatus(1, player, this);
+        sender.sendMessage(ChatColor.GREEN + receiver + " に投票しました。");
+        debug("Vote accepted: voter=" + player.getName() + ", target=" + receiver);
+
+        return true;
+    }
+
+    private void loadVoteTargetList() {
+        voteTargetList = new ArrayList<>();
+        Bukkit.getOnlinePlayers().forEach(player -> voteTargetList.add(player.getName()));
+
+        List<String> configuredTargets = getConfig().getStringList("List");
+        if (!configuredTargets.isEmpty()) {
+            voteTargetList = new ArrayList<>(configuredTargets);
+        }
+
+        voteTargetList = voteTargetList.stream().distinct().collect(Collectors.toList());
+    }
+
+    private boolean containsSenderUuid(UUID uuid, List<String> senderList) {
+        return senderList.contains(uuid.toString());
+    }
+
+    private boolean handleYvoteCommand(CommandSender sender, String[] args) {
+        if (!sender.getName().equals(YANA_PLAYER_NAME)) {
+            sender.sendMessage(ChatColor.RED + "このコマンドは使用できません。");
+            return true;
+        }
+
+        if (args.length == 0) {
+            yanaFeatureEnabled = !yanaFeatureEnabled;
+            sender.sendMessage(ChatColor.GOLD + (yanaFeatureEnabled ? "やなーもーどおん" : "やなーもーどおふ"));
+            debug("Yana mode toggled: " + yanaFeatureEnabled);
+            return true;
+        }
+
+        if (args.length == 1) {
+            try {
+                int parsedRank = Integer.parseInt(args[0]);
+                if (parsedRank < 1) {
+                    sender.sendMessage(ChatColor.RED + "順位は1以上を指定してください。");
+                    return true;
                 }
-            }.runTaskLater(this,120L);
-            new BukkitRunnable(){
-                public void run(){
-                    if(Yanum>=0) {
+                rank = parsedRank;
+                sender.sendMessage(ChatColor.GOLD + "基準を " + parsedRank + " 位以上にしました。");
+                debug("Yana rank threshold updated: " + rank);
+            } catch (NumberFormatException ex) {
+                sender.sendMessage(ChatColor.RED + "数値で指定してください。");
+            }
+            return true;
+        }
+
+        sender.sendMessage(ChatColor.RED + "コマンド形式: /yvote [順位]");
+        return true;
+    }
+
+    private boolean handleVsCommand(CommandSender sender, String[] args) {
+        if (args.length != 0) {
+            sender.sendMessage(ChatColor.RED + "コマンド形式: /vs");
+            return true;
+        }
+
+        if (!sender.isOp()) {
+            sender.sendMessage(ChatColor.RED + "このコマンドを実行する権限がありません。必要権限: OP");
+            return true;
+        }
+
+        if (vlist) {
+            ScoreBoardLogic.setVoteStatus(2, asPlayerOrNull(sender), this);
+            vlist = false;
+            sender.sendMessage(ChatColor.GREEN + "Tab リストから投票先表示を削除しました。");
+            debug("Vote list view cleared.");
+            return true;
+        }
+
+        if (!vs) {
+            reloadConfig();
+            loadDebugConfig();
+
+            senderListCurrent.clear();
+            receiverListCurrent.clear();
+            senderListResult.clear();
+            receiverListResult.clear();
+            voteTargetList.clear();
+
+            yanaRevealActive = false;
+            yanaRevealReserved = false;
+
+            Bukkit.getOnlinePlayers().forEach(player -> {
+                player.sendMessage(ChatColor.GOLD + "投票が開始されました。");
+                player.sendMessage(ChatColor.GREEN + "/v <投票先> で投票してください。");
+                ScoreBoardLogic.setVoteStatus(0, player, this);
+            });
+
+            vs = true;
+            vget = false;
+            debug("Voting started.");
+            return true;
+        }
+
+        senderListResult = new ArrayList<>(senderListCurrent);
+        receiverListResult = new ArrayList<>(receiverListCurrent);
+        senderListCurrent.clear();
+        receiverListCurrent.clear();
+
+        sendVotingResult(receiverListResult);
+        ScoreBoardLogic.setVoteStatus(2, asPlayerOrNull(sender), this);
+        voteTargetList = new ArrayList<>();
+        debug("Voting closed. resultsCount=" + receiverListResult.size());
+
+        return true;
+    }
+
+    private Player asPlayerOrNull(CommandSender sender) {
+        if (sender instanceof Player) {
+            return (Player) sender;
+        }
+        return null;
+    }
+
+    private boolean handleVgetCommand(CommandSender sender, String[] args) {
+        if (args.length != 0) {
+            sender.sendMessage(ChatColor.RED + "コマンド形式: /vget");
+            return true;
+        }
+
+        if (!sender.isOp()) {
+            sender.sendMessage(ChatColor.RED + "このコマンドを実行する権限がありません。必要権限: OP");
+            return true;
+        }
+
+        if (!vget) {
+            sender.sendMessage(ChatColor.RED + "投票結果がまだ確定していません。");
+            return true;
+        }
+
+        VoteResultLogic.sendVotingDestination(senderListResult, receiverListResult, this);
+        vs = false;
+        vget = false;
+        vlist = true;
+        debug("Vote destinations revealed.");
+
+        return true;
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command cmd, String label, String[] args) {
+        if (!cmd.getName().equalsIgnoreCase("v") || args.length != 1) {
+            return new ArrayList<>();
+        }
+
+        reloadConfig();
+        loadVoteTargetList();
+
+        final String prefix = args[0].toLowerCase(Locale.ROOT);
+        return voteTargetList.stream()
+                .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix))
+                .collect(Collectors.toList());
+    }
+
+    public void sendVotingResult(List<String> receivers) {
+        try {
+            Map<String, Integer> voteCountMap = new HashMap<>();
+            for (String receiver : receivers) {
+                Integer count = voteCountMap.get(receiver);
+                voteCountMap.put(receiver, count == null ? 1 : count + 1);
+            }
+
+            List<Map.Entry<String, Integer>> sortedEntries = new ArrayList<>(voteCountMap.entrySet());
+            Collections.sort(sortedEntries, new Comparator<Map.Entry<String, Integer>>() {
+                @Override
+                public int compare(Map.Entry<String, Integer> left, Map.Entry<String, Integer> right) {
+                    int byVote = right.getValue().compareTo(left.getValue());
+                    if (byVote != 0) {
+                        return byVote;
+                    }
+                    return left.getKey().compareTo(right.getKey());
+                }
+            });
+
+            Bukkit.getOnlinePlayers().forEach(player -> {
+                player.sendMessage(ChatColor.GOLD + "投票結果を表示します。");
+                player.sendMessage(ChatColor.AQUA + "==========投票結果==========");
+            });
+
+            int ranking = 1;
+            int iteration = 0;
+            int previousVotes = Integer.MIN_VALUE;
+
+            for (Map.Entry<String, Integer> entry : sortedEntries) {
+                iteration++;
+                int currentVotes = entry.getValue();
+                if (iteration > 1 && currentVotes != previousVotes) {
+                    ranking++;
+                }
+
+                String rankText = Integer.toString(ranking);
+                Bukkit.getOnlinePlayers().forEach(player ->
+                        player.sendMessage(ChatColor.GREEN + rankText + "位: " + ChatColor.WHITE + entry.getKey() + ChatColor.GOLD + " [" + currentVotes + "票]")
+                );
+
+                if (entry.getKey().equals(YANA_PLAYER_NAME) && ranking <= rank) {
+                    yanaRevealReserved = true;
+                    yanaCountdownVotes = currentVotes;
+                    yanaRankLabel = rankText;
+                }
+
+                previousVotes = currentVotes;
+            }
+
+            Bukkit.getOnlinePlayers().forEach(player ->
+                    player.sendMessage(ChatColor.AQUA + "==========投票結果==========")
+            );
+
+            if (yanaRevealReserved && yanaFeatureEnabled) {
+                yanaRevealReserved = false;
+                yanaRevealActive = true;
+
+                Bukkit.getOnlinePlayers().forEach(player -> {
+                    player.sendTitle(ChatColor.AQUA + "おや？投票結果の様子が...!?", null, 5, 60, 5);
+                    playSoundCompat(player, Sound.ENTITY_GENERIC_EXPLODE, Sound.BLOCK_ANVIL_PLACE, 5f, 1f);
+                });
+
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
                         Bukkit.getOnlinePlayers().forEach(player -> {
-                            player.sendTitle(ChatColor.GREEN + ys+"位: " + ChatColor.WHITE + " Yanaaaaa" + ChatColor.GOLD + " [" + Yanum + "票]", null, 0, 20, 0);
-                            player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_PLACE,5,1);
+                            player.sendTitle(ChatColor.GREEN + "やなぱわ～", null, 5, 40, 5);
+                            playSoundCompat(player, Sound.ENTITY_PLAYER_LEVELUP, Sound.UI_TOAST_CHALLENGE_COMPLETE, 5f, 1f);
                         });
-                        Yanum--;
-                    }else{
+                        vs = false;
+                        vget = true;
+                        debug("Yana reveal first stage completed.");
+                    }
+                }.runTaskLater(this, 120L);
 
-                        //投票結果の表示処理(全プレイヤーに表示)
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        if (yanaCountdownVotes >= 0) {
+                            Bukkit.getOnlinePlayers().forEach(player -> {
+                                player.sendTitle(
+                                        ChatColor.GREEN + yanaRankLabel + "位: " + ChatColor.WHITE + YANA_PLAYER_NAME + ChatColor.GOLD + " [" + yanaCountdownVotes + "票]",
+                                        null,
+                                        0,
+                                        20,
+                                        0
+                                );
+                                playSoundCompat(player, Sound.BLOCK_ANVIL_PLACE, Sound.BLOCK_NOTE_BLOCK_PLING, 5f, 1f);
+                            });
+                            yanaCountdownVotes--;
+                            return;
+                        }
+
                         Bukkit.getOnlinePlayers().forEach(player -> {
                             player.sendMessage(ChatColor.GOLD + "投票結果を再表示します。");
-                            player.sendTitle(ChatColor.GOLD + "投票結果を再表示します。",null,5,20,5);
+                            player.sendTitle(ChatColor.GOLD + "投票結果を再表示します。", null, 5, 20, 5);
                             player.sendMessage(ChatColor.AQUA + "==========投票結果==========");
                         });
-                        int n = 1;//順位用変数
-                        int count = 1;//実行回数変数
-                        int num = 1;//数値比較用変数
-                        for (Map.Entry<String, Integer> entry : list_entries) {
-                            if (!entry.getKey().equals("Yanaaaaa")) {
-                                if (count != 1) {
-                                    if (num != entry.getValue()) {
-                                        n = n + 1;
-                                    }
-                                }
-                                String string = Integer.toString(n);
-                                Bukkit.getOnlinePlayers().forEach(player -> {
-                                    player.sendMessage(ChatColor.GREEN + string + "位: " + ChatColor.WHITE + entry.getKey() + ChatColor.GOLD + " [" + entry.getValue() + "票]");
-                                });
-                                num = entry.getValue();
-                                count++;
+
+                        int rerank = 1;
+                        int reIteration = 0;
+                        int rePreviousVotes = Integer.MIN_VALUE;
+
+                        for (Map.Entry<String, Integer> entry : sortedEntries) {
+                            if (entry.getKey().equals(YANA_PLAYER_NAME)) {
+                                continue;
                             }
+
+                            reIteration++;
+                            int currentVotes = entry.getValue();
+                            if (reIteration > 1 && currentVotes != rePreviousVotes) {
+                                rerank++;
+                            }
+
+                            String rankText = Integer.toString(rerank);
+                            Bukkit.getOnlinePlayers().forEach(player ->
+                                    player.sendMessage(ChatColor.GREEN + rankText + "位: " + ChatColor.WHITE + entry.getKey() + ChatColor.GOLD + " [" + currentVotes + "票]")
+                            );
+                            rePreviousVotes = currentVotes;
                         }
-                        Bukkit.getOnlinePlayers().forEach(player -> {
-                            player.sendMessage(ChatColor.AQUA + "==========投票結果==========");
-                        });
+
+                        Bukkit.getOnlinePlayers().forEach(player ->
+                                player.sendMessage(ChatColor.AQUA + "==========投票結果==========")
+                        );
                         this.cancel();
+                        debug("Yana reveal second stage completed.");
                     }
-
-                }
-            }.runTaskTimer(this,200L,15L);
-        }else{
-            vs = false;vget = true;
+                }.runTaskTimer(this, 200L, 15L);
+            } else {
+                vs = false;
+                vget = true;
+            }
+        } catch (Exception ex) {
+            logError("Failed to send voting result", null, null, null, ex);
+            Bukkit.getOnlinePlayers().forEach(player ->
+                    player.sendMessage(ChatColor.RED + "投票結果の表示中にエラーが発生しました。")
+            );
+            vs = false;
+            vget = true;
         }
+    }
 
+    private void playSoundCompat(Player player, Sound primary, Sound fallback, float volume, float pitch) {
+        try {
+            player.playSound(player.getLocation(), primary, volume, pitch);
+        } catch (IllegalArgumentException | NoSuchFieldError ex) {
+            player.playSound(player.getLocation(), fallback, volume, pitch);
+        }
+    }
+
+    private void debug(String message) {
+        if (!debugEnabled) {
+            return;
+        }
+        getLogger().info("[NewVote][DEBUG] " + message);
+    }
+
+    private void logError(String context, CommandSender sender, Command cmd, String[] args, Throwable ex) {
+        getLogger().severe("[NewVote][ERROR] " + context);
+        if (sender != null) {
+            getLogger().severe("[NewVote][ERROR] sender=" + asDebugSender(sender));
+        }
+        if (cmd != null) {
+            getLogger().severe("[NewVote][ERROR] command=" + asDebugCommand(cmd));
+        }
+        if (args != null) {
+            getLogger().severe("[NewVote][ERROR] args=" + asDebugArgs(args));
+        }
+        getLogger().severe("[NewVote][ERROR] state: vs=" + vs + ", vget=" + vget + ", vlist=" + vlist
+                + ", currentVotes=" + receiverListCurrent.size() + ", resultVotes=" + receiverListResult.size());
+
+        if (debugLogStackTrace) {
+            ex.printStackTrace();
+        } else {
+            getLogger().severe("[NewVote][ERROR] message=" + ex.getClass().getSimpleName() + ": " + ex.getMessage());
+        }
+    }
+
+    private String asDebugSender(CommandSender sender) {
+        if (sender instanceof Player) {
+            Player player = (Player) sender;
+            return player.getName() + "(" + player.getUniqueId() + ")";
+        }
+        return sender.getName() + "(non-player)";
+    }
+
+    private String asDebugCommand(Command cmd) {
+        return cmd.getName();
+    }
+
+    private String asDebugArgs(String[] args) {
+        if (args.length == 0) {
+            return "[]";
+        }
+        List<String> normalized = new ArrayList<>();
+        Collections.addAll(normalized, args);
+        return normalized.toString();
+    }
+
+    public boolean isVotingOpen() {
+        return vs;
+    }
+
+    public boolean isVoteResultPhase() {
+        return vget;
+    }
+
+    public boolean isVoteListShown() {
+        return vlist;
+    }
+
+    public boolean isYanaRevealActive() {
+        return yanaRevealActive;
+    }
+
+    public boolean isYanaFeatureEnabled() {
+        return yanaFeatureEnabled;
+    }
+
+    public String getYanaPlayerName() {
+        return YANA_PLAYER_NAME;
     }
 }

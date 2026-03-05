@@ -6,45 +6,41 @@ import org.bukkit.entity.Player;
 
 public class ScoreBoardLogic {
 
-    /**
-     * Tabを押した際表示されるプレイヤーリストに投票の状態を表示する。
-     *
-     * @param pattern 数値 0=投票開始時,1=投票時,2=投票終了時
-     * @param sender プレイヤー 投票者
-     */
-
-    static void setVoteStatus(int pattern, Player sender){
-        //投票開始時の処理
-        if(pattern==0){
-            sender.setPlayerListName(ChatColor.GRAY+" × "+ChatColor.WHITE+sender.getName());
-        }
-        //投票時
-        else if(pattern==1){
-            sender.setPlayerListName(ChatColor.GOLD+" ✓ "+ChatColor.WHITE+sender.getName());
-        }
-        //投票終了時
-        else{
-            Bukkit.getOnlinePlayers().forEach(player -> {
-            player.setPlayerListName(player.getName());
-        });
+    static void setVoteStatus(int pattern, Player sender, NewVote plugin) {
+        switch (pattern) {
+            case 0:
+                if (sender != null) {
+                    safeSetPlayerListName(plugin, sender, ChatColor.GRAY + " × " + ChatColor.WHITE + sender.getName());
+                }
+                break;
+            case 1:
+                if (sender != null) {
+                    safeSetPlayerListName(plugin, sender, ChatColor.GOLD + " ✓ " + ChatColor.WHITE + sender.getName());
+                }
+                break;
+            default:
+                Bukkit.getOnlinePlayers().forEach(player -> safeSetPlayerListName(plugin, player, player.getName()));
+                break;
         }
     }
 
-    /**
-     * Tabを押した際表示されるプレイヤーリストに投票の状態を表示する。
-     *
-     * @param sender プレイヤー名 投票者
-     * @param receiver プレイヤー名 投票先
-     */
-    static void setVoteResult(String sender,String receiver){
+    static void setVoteResult(String sender, String receiver, NewVote plugin) {
         Bukkit.getOnlinePlayers().forEach(player -> {
-            if(player.getName().equals(sender)) {
-                if(NewVote.YanaGet&&receiver.equals("Yanaaaaa")&&NewVote.Yvote){
-                    player.setPlayerListName(player.getName() + " : " + ChatColor.MAGIC + "????????");
-                }else {
-                    player.setPlayerListName(player.getName() + " : " + ChatColor.AQUA + receiver);
+            if (player.getName().equals(sender)) {
+                if (plugin.isYanaRevealActive() && receiver.equals(plugin.getYanaPlayerName()) && plugin.isYanaFeatureEnabled()) {
+                    safeSetPlayerListName(plugin, player, player.getName() + " : " + ChatColor.MAGIC + "????????");
+                } else {
+                    safeSetPlayerListName(plugin, player, player.getName() + " : " + ChatColor.AQUA + receiver);
                 }
             }
         });
+    }
+
+    private static void safeSetPlayerListName(NewVote plugin, Player player, String text) {
+        try {
+            player.setPlayerListName(text);
+        } catch (IllegalArgumentException ex) {
+            plugin.getLogger().warning("Failed to update player list name for " + player.getName() + ": " + ex.getMessage());
+        }
     }
 }

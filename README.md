@@ -1,81 +1,103 @@
 # NewVotePlugin
 
-投票の進行、投票状況の可視化、結果表示を行う Minecraft サーバープラグインです。
+投票プラグインです。投票済みかどうかを Tab リストで確認できます。
 
-`/vs` で投票を開始し、`/v` で投票、`/vget` で投票先を開示できます。Tab リスト上に投票状態を表示できる点が特徴です。
-
-## 特徴
-
-- **シンプルな投票フロー** - `/vs` で開始、`/v <対象名>` で投票、`/vs` で締切
-- **Tab リスト可視化** - 未投票/投票済みや投票先を Tab リストで確認
-- **投票先固定モード** - `config.yml` の `List` に候補を設定可能
-- **やなー演出モード** - 条件に応じて専用演出を表示 (`/yvote`)
-- **Tab 補完対応** - `/v` 入力時に候補を補完
-
-## 必要なもの
-
-- Java 8 以上
-- Paper / Spigot サーバー
-- Maven 3.8 以上 (ビルド時)
-
-## インストール
-
-```powershell
-git clone https://github.com/cyrne1-7208/NewVote-cyrne1.git
-cd NewVote-cyrne1
-mvn -DskipTests package
-```
-
-生成された `target/NewVote-8.77778.1.jar` をサーバーの `plugins` フォルダに配置してください。
-
-## 使い方
-
-```text
-1. /vs で投票を開始
-2. 各プレイヤーが /v <投票先名> で投票
-3. /vs で投票締切と結果表示
-4. /vget で投票者ごとの投票先を Tab リストに開示
-5. 必要に応じて /vs で Tab 表示をクリア
-```
-
-## コマンド一覧
-
-| コマンド | 権限 | 説明 |
-|----------|------|------|
-| `/v <投票先>` | `newvote.v` | 投票する |
-| `/vs` | `newvote.vs` (OP) | 投票開始 / 締切 / Tab クリア |
-| `/vget` | `newvote.vs` (OP) | 投票先を開示 |
-| `/yvote` | `newvote.v` | `Yanaaaaa` 用の特殊モード切替 |
-
-## 設定 (`config.yml`)
-
-| キー | デフォルト | 説明 |
-|------|-----------|------|
-| `List` | 空 | 投票候補の固定リスト。空の場合はオンラインプレイヤーを使用 |
-
-例:
-
-```yaml
-List:
-	- "Alice"
-	- "Bob"
-	- "Charlie"
-```
-
-## 権限
-
-| 権限ノード | デフォルト |
-|------------|-----------|
-| `newvote.v` | true |
-| `newvote.vs` | op |
+- 参考プラグイン: https://github.com/TeamKun/VotePlugin
 
 ## 謝辞
 
-- やにゃー版のフォーク元: [TeamKun/NewVote-YanaaaaaEdition](https://github.com/TeamKun/NewVote-YanaaaaaEdition)
-- 本プロジェクトは上記フォーク元をベースに作成しています。
-
+- 本プラグインの原案と演出に関して、やなー氏 (`Yanaaaaa`) に感謝します。
 - AI である [GPT-5.3-Codex](https://openai.com/codex)（OpenAI）の支援を受けて開発されました。
 
-## ライセンス
+## 対応バージョン
 
-MIT - [LICENSE](LICENSE) を参照してください。
+- 今回の動作確認済み:
+  - Minecraft `1.15.2` / Paper `1.15.2` (JDK 11)
+  - Minecraft `1.16.5` / Paper `1.16.5` (JDK 16)
+  - Minecraft `1.21.11` / Paper `1.21.11` (Java 23)
+- 補足 (Java 23 での直接起動):
+  - Minecraft `1.15.2` / Paper `1.15.2` は Paper 側が Java 14 までを要求
+  - Minecraft `1.16.5` / Paper `1.16.5` は Paper 側が Java 16 までを要求
+- コード観点での互換見込み:
+  - `1.15.2` - `1.21.x`
+
+補足:
+- 本プラグインは NMS (net.minecraft.server) を使わず Bukkit/Spigot API のみで実装しています。
+- サウンド再生は互換フォールバックを実装しているため、中間バージョンでの enum 差分にも耐性があります。
+
+## コマンド一覧
+
+### OP 権限が必要
+
+- `/vs`
+  - 1回目: 投票開始
+  - 2回目: 投票締切と結果表示
+  - `vget` 後: Tab リスト表示の投票先をクリア
+- `/vget`
+  - 各投票者の投票先を Tab リストに表示
+
+### 権限不要
+
+- `/v <投票先の名称>`
+  - 対象に投票
+
+### 特殊コマンド
+
+- `/yvote`
+  - `Yanaaaaa` プレイヤー専用コマンド
+  - 引数なし: やなーもーど ON/OFF
+  - 引数1つ: 演出発動の順位閾値を変更
+
+## 使用方法
+
+1. `/vs` で投票を開始
+2. `/v <投票先>` で投票
+3. `/vs` で投票締切と投票結果を表示
+4. `/vget` で各プレイヤーの投票先を表示
+5. `/vs` で Tab リスト上の投票先表示を削除
+
+## 投票先の設定
+
+通常はオンラインプレイヤーが投票先になります。
+
+`config.yml` の `List` に要素を入れると、投票先はその固定リストに切り替わります。
+
+```yaml
+List:
+  - "対象1"
+  - "対象2"
+```
+
+空配列 (`List: []`) の場合はオンラインプレイヤーが対象です。
+
+## デバッグとエラーログ
+
+`config.yml`:
+
+```yaml
+debug:
+  enabled: false
+  logStackTrace: true
+```
+
+- `debug.enabled: true`
+  - コマンド実行時の状態遷移ログを出力
+- `debug.logStackTrace: true`
+  - 例外発生時にスタックトレースを出力
+
+ログには以下の情報を含める設計です。
+
+- 実行コマンド
+- 実行者
+- 引数
+- プラグイン内部状態 (`vs`, `vget`, `vlist`, 投票数など)
+
+## ビルド
+
+```bash
+mvn -DskipTests package
+```
+
+生成物:
+
+- `target/NewVote-v8.77778.1.jar`

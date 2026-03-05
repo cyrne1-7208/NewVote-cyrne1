@@ -1,1 +1,5 @@
-List:
+List: []
+
+debug:
+  enabled: false
+  logStackTrace: true
