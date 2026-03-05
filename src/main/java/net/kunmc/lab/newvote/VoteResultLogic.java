@@ -2,30 +2,42 @@ package net.kunmc.lab.newvote;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.entity.Player;
 
-import java.util.*;
+import java.util.List;
+import java.util.UUID;
 
-//投票関係の結果生成
 public class VoteResultLogic {
 
-    /**
-     * 各投票者の投票先をチャット欄に生成する。
-     *
-     * @param senders　リスト 投票者のリスト
-     * @param receivers　リスト　投票先のリスト
-     */
-    static void sendVotingDestination(List<String> senders, List<String> receivers){
-        //投票先の表示処理(全プレイヤーに表示)
+    static void sendVotingDestination(List<String> senders, List<String> receivers, NewVote plugin) {
         Bukkit.getOnlinePlayers().forEach(player -> {
             player.sendMessage(ChatColor.GOLD + "投票先を開示します。");
             player.sendMessage(ChatColor.AQUA + "Tabを押してスコアボードを確認してください。");
         });
-        for (int i = 0; i < senders.size(); i++) {
-            int num = i;
-            Bukkit.getOnlinePlayers().forEach(player -> {
-                ScoreBoardLogic.setVoteResult(senders.get(num),receivers.get(num));
-            });
+
+        int loopCount = Math.min(senders.size(), receivers.size());
+        for (int i = 0; i < loopCount; i++) {
+            String senderName = resolveSenderName(senders.get(i));
+            String receiverName = receivers.get(i);
+            ScoreBoardLogic.setVoteResult(senderName, receiverName, plugin);
         }
+    }
+
+    private static String resolveSenderName(String rawSender) {
+        if (rawSender == null || rawSender.isEmpty()) {
+            return "";
+        }
+
+        try {
+            UUID uuid = UUID.fromString(rawSender);
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null) {
+                return player.getName();
+            }
+        } catch (IllegalArgumentException ignored) {
+            return rawSender;
+        }
+
+        return rawSender;
     }
 }
